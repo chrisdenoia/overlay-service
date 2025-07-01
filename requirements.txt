@@ -14,6 +14,7 @@ Jinja2==3.1.6
 MarkupSafe==3.0.2
 numpy==1.26.4
 packaging==25.0
+pillow
 protobuf==4.25.8
 pycparser==2.22
 pyparsing==3.2.3
