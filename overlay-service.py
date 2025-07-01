@@ -1,55 +1,56 @@
-from flask import Flask, request, jsonify
-import base64
-import cv2
-import numpy as np
+from flask import Flask, request, jsonify, send_file
 import mediapipe as mp
-import uuid
+import numpy as np
+from PIL import Image, ImageDraw
+import io
 import os
+import base64
 
 app = Flask(__name__)
 
-OUTPUT_DIR = 'output_images'
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(static_image_mode=True)
 mp_drawing = mp.solutions.drawing_utils
+mp_pose = mp.solutions.pose
+
+@app.route('/')
+def index():
+    return jsonify({"message": "Overlay service is running!"})
 
 @app.route('/overlay', methods=['POST'])
 def generate_overlay():
-    try:
-        data = request.get_json()
-        image_data = data.get('imageBase64')
-        upload_id = data.get('upload_id')
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
 
-        if not image_data or not upload_id:
-            return jsonify({'error': 'Missing imageBase64 or upload_id'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
 
-        image_bytes = base64.b64decode(image_data)
-        np_array = np.frombuffer(image_bytes, np.uint8)
-        image = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
+    # Read and convert to RGB
+    image = Image.open(file.stream).convert('RGB')
+    img_array = np.array(image)
 
-        results = pose.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    with mp_pose.Pose(static_image_mode=True) as pose:
+        results = pose.process(img_array)
+
         if not results.pose_landmarks:
-            return jsonify({'error': 'Pose not detected'}), 422
+            return jsonify({'error': 'No pose landmarks detected'}), 400
 
-        annotated_image = image.copy()
-        mp_drawing.draw_landmarks(
-            annotated_image,
-            results.pose_landmarks,
-            mp_pose.POSE_CONNECTIONS
-        )
+        # Draw keypoints using PIL
+        draw = ImageDraw.Draw(image)
+        width, height = image.size
 
-        output_path = os.path.join(OUTPUT_DIR, f"{upload_id}_overlay.png")
-        cv2.imwrite(output_path, annotated_image)
+        for landmark in results.pose_landmarks.landmark:
+            x = int(landmark.x * width)
+            y = int(landmark.y * height)
+            draw.ellipse((x-3, y-3, x+3, y+3), fill='red')
 
-        return jsonify({
-            'status': 'success',
-            'overlay_image_path': output_path
-        })
+    # Save result to buffer
+    img_io = io.BytesIO()
+    image.save(img_io, 'PNG')
+    img_io.seek(0)
 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    return send_file(img_io, mimetype='image/png')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    import os
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
