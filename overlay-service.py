@@ -1,9 +1,14 @@
 from flask import Flask, request, jsonify
 from PIL import Image, ImageDraw
+import numpy as np
+import mediapipe as mp
 import io
 import base64
 
 app = Flask(__name__)
+
+mp_pose = mp.solutions.pose
+pose = mp_pose.Pose(static_image_mode=True)
 
 @app.route('/')
 def home():
@@ -13,15 +18,26 @@ def home():
 def process_pose():
     data = request.json
 
-    # For now, simulate generating an image
-    img = Image.new('RGB', (256, 256), color='white')
-    draw = ImageDraw.Draw(img)
-    draw.text((50, 120), "Pose Processed", fill='black')
+    # Decode image from base64
+    image_bytes = base64.b64decode(data["image_base64"])
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    np_image = np.array(image)
 
-    # Convert image to base64
-    buffered = io.BytesIO()
-    img.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
+    # Run pose detection
+    results = pose.process(np_image)
+
+    # Draw pose landmarks if available
+    draw = ImageDraw.Draw(image)
+    if results.pose_landmarks:
+        for lm in results.pose_landmarks.landmark:
+            x = int(lm.x * image.width)
+            y = int(lm.y * image.height)
+            draw.ellipse((x - 2, y - 2, x + 2, y + 2), fill='blue')
+
+    # Convert processed image to base64
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    img_str = base64.b64encode(output.getvalue()).decode()
 
     return jsonify({
         "status": "success",
