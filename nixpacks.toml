@@ -1,8 +1,7 @@
 [phases.setup]
-nixPkgs = ["libGL"]
+nixPkgs = ["libGL", "python312"]
 
 [build]
-nixPkgs = ["python312"]
 cmd = "python3 -m venv /opt/venv && . /opt/venv/bin/activate && pip install -r requirements.txt"
 
 [start]
