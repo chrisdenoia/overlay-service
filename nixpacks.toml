@@ -1,5 +1,5 @@
 [setup]
-nixPkgs = ["libGL", "python312"]
+nixpkgs = ["libGL", "python312"]
 
 [build]
 cmd = "python3 -m venv /opt/venv && . /opt/venv/bin/activate && pip install -r requirements.txt"
