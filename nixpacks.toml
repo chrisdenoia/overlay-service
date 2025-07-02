@@ -1,4 +1,4 @@
-[setup]
+[phases.setup]
 nixpkgs = ["libGL", "python312"]
 
 [build]
