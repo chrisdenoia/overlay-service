@@ -7,9 +7,6 @@ import base64
 
 app = Flask(__name__)
 
-mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(static_image_mode=True)
-
 @app.route('/')
 def home():
     return 'Overlay service is live!'
@@ -23,8 +20,10 @@ def process_pose():
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     np_image = np.array(image)
 
-    # Run pose detection
-    results = pose.process(np_image)
+    # Run MediaPipe Pose inside context manager
+    mp_pose = mp.solutions.pose
+    with mp_pose.Pose(static_image_mode=True) as pose:
+        results = pose.process(np_image)
 
     # Draw pose landmarks if available
     draw = ImageDraw.Draw(image)
