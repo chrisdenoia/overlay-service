@@ -1,4 +1,3 @@
-# Trigger redeploy
 import os
 import logging
 from flask import Flask, request, jsonify
@@ -8,6 +7,10 @@ import mediapipe as mp
 import io
 import base64
 import math
+
+# TEMP: Debug print to confirm environment variable
+print("🔍 ENV DEBUG:", os.environ.get("DEBUG"))
+print("🔍 ALL ENV VARS:", dict(os.environ))
 
 # 🔍 Debug Logging Setup
 DEBUG_MODE = os.environ.get("DEBUG", "false").lower() == "true"
