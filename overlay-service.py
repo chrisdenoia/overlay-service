@@ -8,12 +8,17 @@ import numpy as np
 import mediapipe as mp
 import io
 import base64
+import math
 
 # 🔍 Debug Logging Setup
 DEBUG_MODE = os.environ.get("DEBUG", "false").lower() == "true"
 def log(msg):
     if DEBUG_MODE:
         print(f"[DEBUG] {msg}")
+
+# 🔑 Debug key logging
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+print(f"🔑 Loaded Supabase key: {SUPABASE_KEY[:10]}... (length: {len(SUPABASE_KEY) if SUPABASE_KEY else 'None'})")
 
 app = Flask(__name__)
 
@@ -23,10 +28,11 @@ mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 
 def calculate_angle(a, b, c):
+    """Calculates the angle between three points (in degrees)."""
     a = np.array(a)
     b = np.array(b)
     c = np.array(c)
-    
+
     ba = a - b
     bc = c - b
 
@@ -49,26 +55,29 @@ def process_pose():
 
         # Decode image
         image_bytes = base64.b64decode(data["image_base64"])
-        pil_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        np_image = np.array(pil_image)
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        log(f"🖼️ Opened image. Mode: {image.mode}, Size: {image.size}")
+
+        np_image = np.array(image)
 
         # MediaPipe processing
         with mp_pose.Pose(static_image_mode=True) as pose:
             results = pose.process(np_image)
 
+        draw = ImageDraw.Draw(image)
         angles = {}
-        annotated_image = pil_image.copy()
-        draw = ImageDraw.Draw(annotated_image)
 
         if results.pose_landmarks:
             landmarks = results.pose_landmarks.landmark
-            h, w = pil_image.height, pil_image.width
+            h, w = image.height, image.width
 
+            log(f"🧍 Image size: width={w}, height={h}")
+
+            # Extract key points
             def get_coords(idx):
                 pt = landmarks[idx]
                 return (int(pt.x * w), int(pt.y * h))
 
-            # Coordinates
             right_shoulder = get_coords(mp_pose.PoseLandmark.RIGHT_SHOULDER)
             right_elbow = get_coords(mp_pose.PoseLandmark.RIGHT_ELBOW)
             right_wrist = get_coords(mp_pose.PoseLandmark.RIGHT_WRIST)
@@ -86,7 +95,7 @@ def process_pose():
             angles["shoulder"] = calculate_angle(right_hip, right_shoulder, right_elbow)
             angles["hip"] = calculate_angle(right_shoulder, right_hip, right_knee)
 
-            # Draw landmarks onto NumPy canvas
+            # Draw pose landmarks
             mp_drawing.draw_landmarks(
                 image=np_image,
                 landmark_list=results.pose_landmarks,
@@ -94,26 +103,27 @@ def process_pose():
                 landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style()
             )
 
-            # Convert updated np_image back to annotated PIL image
-            annotated_image = Image.fromarray(np_image)
-            draw = ImageDraw.Draw(annotated_image)
+            # Convert back to PIL for annotation
+            image = Image.fromarray(np_image)
+            draw = ImageDraw.Draw(image)
 
-            # Font setup
+            # Font for angle display
             try:
                 font = ImageFont.truetype("arial.ttf", 24)
             except:
                 font = ImageFont.load_default()
 
-            # Draw angle text
-            draw.text(right_elbow, f"{angles['elbow']}\u00b0", fill="green", font=font)
-            draw.text(right_shoulder, f"{angles['shoulder']}\u00b0", fill="blue", font=font)
-            draw.text(right_hip, f"{angles['hip']}\u00b0", fill="red", font=font)
-        else:
-            log("⚠️ No pose landmarks detected.")
+            # Draw angles
+            draw.text(right_elbow, f"{angles['elbow']}°", fill="green", font=font)
+            draw.text(right_shoulder, f"{angles['shoulder']}°", fill="blue", font=font)
+            draw.text(right_hip, f"{angles['hip']}°", fill="red", font=font)
 
-        # Encode output image
+        else:
+            log("⚠️ No pose landmarks detected by MediaPipe.")
+
+        # Encode output
         output = io.BytesIO()
-        annotated_image.save(output, format="PNG")
+        image.save(output, format="PNG")
         img_str = base64.b64encode(output.getvalue()).decode()
 
         return jsonify({
