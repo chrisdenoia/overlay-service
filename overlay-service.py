@@ -56,6 +56,13 @@ def process_pose():
 
         np_image = np.array(image)
 
+        # ✅ Fix: remove alpha channel if present
+        if np_image.shape[-1] == 4:
+            log("⚙️ Stripping alpha channel from image")
+            np_image = np_image[..., :3]
+
+        log(f"🧪 Numpy image shape: {np_image.shape}")
+
         # MediaPipe processing
         with mp_pose.Pose(static_image_mode=True) as pose:
             results = pose.process(np_image)
@@ -64,6 +71,7 @@ def process_pose():
         angles = {}
 
         if results.pose_landmarks:
+            log("✅ Pose landmarks detected")
             landmarks = results.pose_landmarks.landmark
             h, w = image.height, image.width
 
@@ -91,7 +99,7 @@ def process_pose():
             angles["shoulder"] = calculate_angle(right_hip, right_shoulder, right_elbow)
             angles["hip"] = calculate_angle(right_shoulder, right_hip, right_knee)
 
-            # Draw pose landmarks
+            # Draw pose landmarks on numpy image
             mp_drawing.draw_landmarks(
                 image=np_image,
                 landmark_list=results.pose_landmarks,
