@@ -15,7 +15,7 @@ from flask import Flask, request, jsonify
 import mediapipe as mp
 from PIL import Image
 from supabase import create_client   # NEW
-import json, time, os      # add json & time (os already used)
+import json, time, uuid, os   # ← single consolidated line
 
 app = Flask(__name__)
 mp_pose = mp.solutions.pose
@@ -65,7 +65,6 @@ def process():
         overlay_png, landmarks = generate_pose_overlay(image_bytes)
 
 # ---- Save keypoints JSON to Supabase Storage -----------------
-import time, json, uuid
 
 timestamp = int(time.time() * 1000)                 # e.g., 1720560578123
 kp_path   = f"{user_id}/keypoints_{upload_id}_{timestamp}.json"
