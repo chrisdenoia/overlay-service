@@ -15,6 +15,7 @@ from flask import Flask, request, jsonify
 import mediapipe as mp
 from PIL import Image
 from supabase import create_client   # NEW
+import json, time, os      # add json & time (os already used)
 
 app = Flask(__name__)
 mp_pose = mp.solutions.pose
@@ -63,14 +64,26 @@ def process():
         image_bytes = base64.b64decode(image_base64)
         overlay_png, landmarks = generate_pose_overlay(image_bytes)
 
-        # ---- Save keypoints JSON to Supabase Storage -----------------
-        kp_path = f"{user_id}/keypoints_{uuid.uuid4()}.json"
-        supabase.storage.from_(BUCKET).upload(
-            kp_path,
-            json.dumps(landmarks),
-            { "contentType": "application/json", "upsert": True }
-        )
-        keypoints_url = supabase.storage.from_(BUCKET).get_public_url(kp_path)["public_url"]
+# ---- Save keypoints JSON to Supabase Storage -----------------
+import time, json, uuid
+
+timestamp = int(time.time() * 1000)                 # e.g., 1720560578123
+kp_path   = f"{user_id}/keypoints_{upload_id}_{timestamp}.json"
+
+# Compact JSON (no pretty-print → smaller file)
+kp_bytes = json.dumps(landmarks, separators=(",", ":")).encode()
+
+upload_res = supabase.storage.from_(BUCKET).upload(
+    kp_path,
+    kp_bytes,
+    { "contentType": "application/json", "upsert": True }
+)
+if upload_res.get("error"):
+    raise RuntimeError(f"Storage upload error: {upload_res['error']}")
+
+# Get the public URL (note the field name is publicUrl)
+keypoints_url = supabase.storage.from_(BUCKET).get_public_url(kp_path)["publicUrl"]
+print("Saved keypoints JSON →", keypoints_url)
 
         # ---- Encode overlay PNG back to base64 (unchanged) ----------
         _, buffer = cv2.imencode(".png", overlay_png)
