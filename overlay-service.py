@@ -84,7 +84,7 @@ def process():
         up_res = supabase.storage.from_(BUCKET).upload(
             kp_path,
             kp_bytes,
-            {"content_type": "application/json", "upsert": "true"},
+            {"content_type": "application/octet-stream", "upsert": "true"},
         )
         if up_res.get("error"):
             print("[process] Storage upload error:", up_res["error"])
