@@ -1,10 +1,10 @@
 # overlay-service.py  – v2025-07-10
 # ------------------------------------------------------------------
 # What’s new?
-#   • Generates a compact 33-landmark JSON and uploads it to Supabase
+#   • Generates a compact 33‑landmark JSON and uploads it to Supabase
 #     Storage → returns keypoints_url.
 #   • Binds Flask on 0.0.0.0 for Railway.
-#   • **upsert is now passed as the string "true"** to avoid bool-to-bytes
+#   • **upsert is now passed as the string "true"** to avoid bool‑to‑bytes
 #     error.
 # ------------------------------------------------------------------
 
@@ -25,7 +25,7 @@ from supabase import create_client
 app = Flask(__name__)
 mp_pose = mp.solutions.pose
 
-# ---- Supabase client (service-role) ---------------------------------
+# ---- Supabase client (service‑role) ---------------------------------
 supabase = create_client(
     os.environ["SUPABASE_URL"],
     os.environ["SUPABASE_SERVICE_ROLE_KEY"],
@@ -80,7 +80,7 @@ def process():
         up = supabase.storage.from_(BUCKET).upload(
             kp_path,
             kp_bytes,
-            {"contentType": "application/json", "upsert": "true"},  # <- FIXED
+            {"content-type": "application/json", "upsert": "true"},  # <- FIXED
         )
         if up.get("error"):
             raise RuntimeError(f"Storage upload error: {up['error']}")
