@@ -1,0 +1,165 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+const OVERLAY_SERVICE_URL = "https://web-production-4c31.up.railway.app/process";
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    console.log("=== UPLOAD OVERLAY REAL FUNCTION START ===");
+    console.log("Processing overlay real upload request...");
+
+    const requestBody = await req.json();
+    console.log("Raw request body:", JSON.stringify(requestBody, null, 2));
+
+    // Handle both direct (imageBase64) and automated (file_path) calls
+    const {
+      user_id,
+      imageBase64,
+      upload_id,
+      file_path,
+      keypoints_url,            // ← PATCH 1
+    } = requestBody;
+
+    console.log("Request data:", {
+      user_id,
+      upload_id,
+      file_path,
+      keypoints_url_present: !!keypoints_url,
+      imageBase64: imageBase64 ? `present (${imageBase64.length} chars)` : "missing",
+    });
+    if (!user_id) throw new Error("Missing required field: user_id");
+    if (!upload_id) throw new Error("Missing required field: upload_id");
+    // Initialize Supabase client with service-role key
+    const supabaseServiceRole = createClient(
+      "https://hphdlkrpxalmdeneeboi.supabase.co",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
+    );
+
+    // ── Ensure we have base64 data ───────────────────────────────────────
+    let imageBase64Data = imageBase64;
+    if (!imageBase64Data && file_path) {
+      console.log("=== FETCHING FROM STORAGE ===");
+      console.log("Fetching image from storage path:", file_path);
+      const { data: fileData, error: downloadError } =
+        await supabaseServiceRole.storage.from("user-videos").download(file_path);
+      if (downloadError) {
+        console.error("Error downloading file from storage:", downloadError);
+        throw new Error(`Failed to download file: ${downloadError.message}`);
+      }
+      const buffer = await fileData.arrayBuffer();
+      imageBase64Data = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+      console.log("Successfully converted file to base64, length:", imageBase64Data.length);
+    }
+    if (!imageBase64Data) {
+      throw new Error(
+        "No image data available – missing both imageBase64 and valid file_path"
+      );
+    }
+
+    // ── Call Flask service ───────────────────────────────────────────────
+    console.log("=== CALLING FLASK SERVICE ===");
+    const flaskResponse = await Promise.race([
+      fetch(OVERLAY_SERVICE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_base64: imageBase64Data, user_id }),
+      }),
+      new Promise((_, rej) =>
+        setTimeout(() => rej(new Error("Flask service timeout after 30s")), 30000)
+      ),
+    ]);
+    console.log("Flask response status:", flaskResponse.status);
+    if (!flaskResponse.ok) {
+      const txt = await flaskResponse.text();
+      throw new Error(`Flask service responded ${flaskResponse.status}: ${txt}`);
+    }
+
+    const flaskResult = await flaskResponse.json();
+    const overlayBase64 = flaskResult.overlay_base64;
+    const kpUrlFromFlask = flaskResult.keypoints_url ?? null;
+    if (!overlayBase64) throw new Error("No overlay_base64 returned from Flask service");
+
+    // Basic base64 sanity check
+    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(overlayBase64)) {
+      throw new Error("Invalid base64 format received from Flask service");
+    }
+
+    // ── Validate PNG / JPEG magic bytes (kept from original) ─────────────
+    try {
+      const firstBytes = atob(overlayBase64.substring(0, 20));
+      const sig = [...firstBytes].map((c) => c.charCodeAt(0));
+      const isPNG  = sig[0] === 0x89 && sig[1] === 0x50;
+      const isJPEG = sig[0] === 0xff && sig[1] === 0xd8;
+      console.log("Detected format:", { isPNG, isJPEG });
+    } catch (e) {
+      console.warn("Could not inspect magic bytes:", e);
+    }
+
+    // ── Upload overlay_real.png ──────────────────────────────────────────
+    const pngBytes = Uint8Array.from(atob(overlayBase64), (c) => c.charCodeAt(0));
+    const storagePath = `${upload_id}/overlay_real.png`;
+    const up = await supabaseServiceRole.storage
+      .from("processed-data")
+      .upload(storagePath, pngBytes, { contentType: "image/png", upsert: true });
+    if (up.error) throw up.error;
+
+    const { data: pub } =
+      supabaseServiceRole.storage.from("processed-data").getPublicUrl(storagePath);
+    const finalOverlayUrl = pub.publicUrl;
+    console.log("Public URL:", finalOverlayUrl);
+    // ── Update user_uploads row ──────────────────────────────────────────
+    const { error: updateError } = await supabaseServiceRole
+      .from("user_uploads")
+      .update({
+        overlay_real_url: finalOverlayUrl,
+        keypoints_url: kpUrlFromFlask || keypoints_url || null, // ← PATCH 2
+        overlay_url: null,                                     // legacy column
+      })
+      .eq("id", upload_id)
+      .eq("user_id", user_id);
+    if (updateError) {
+      console.error("Error updating user_uploads:", updateError);
+      throw updateError;
+    }
+
+    console.log("Successfully updated user_uploads");
+
+    // ── Success response ────────────────────────────────────────────────
+    return new Response(
+      JSON.stringify({
+        success: true,
+        overlay_real_url: finalOverlayUrl,
+        keypoints_url: kpUrlFromFlask || keypoints_url || null,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      }
+    );
+  } catch (error) {
+    console.error("=== ERROR IN UPLOAD-OVERLAY-REAL FUNCTION ===");
+    console.error(error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message,
+        debug_info: {
+          flask_service_url: OVERLAY_SERVICE_URL,
+          timestamp: new Date().toISOString(),
+        },
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      }
+    );
+  }
+});

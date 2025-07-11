@@ -50,7 +50,7 @@ def generate_pose_overlay(image_bytes):
     return annotated_image, lm_list, silhouette
 
 # ---------------------------------------------------------------------
-@app.route("/process", methods=["POST"])
+@app.route("/generate-pose-overlay", methods=["POST"])
 def process():
     try:
         data = request.get_json()
