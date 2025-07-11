@@ -1,10 +1,7 @@
-# overlay-service.py  – v2025-07-10 (FULL, no lines removed)
+# overlay-service.py – v2025-07-10 (Supabase-py Response fix)
 # ------------------------------------------------------------------
-# • Detects 33 MediaPipe landmarks, saves them to Supabase Storage as
-#      <user_id>/keypoints_<upload_id>_<ts>.json  ➔  returns keypoints_url
-# • Generates overlay PNG and returns overlay_base64 (unchanged)
-# • Binds Flask on 0.0.0.0 for Railway routing
-# • **No logs, validations, or error handling removed**
+# Full file, no logs removed. Only change: handle new Response object
+# returned by supabase.storage.upload().
 # ------------------------------------------------------------------
 
 import base64
@@ -81,14 +78,14 @@ def process():
         kp_bytes = json.dumps(landmarks, separators=(",", ":")).encode()
         print("[process] Uploading keypoints JSON →", kp_path)
 
-        up_res = supabase.storage.from_(BUCKET).upload(
+        resp = supabase.storage.from_(BUCKET).upload(
             kp_path,
             kp_bytes,
-            {"content-type": "application/json"}  # only content-type header
+            {"content-type": "application/json"},
         )
-        if up_res.get("error"):
-            print("[process] Storage upload error:", up_res["error"])
-            raise RuntimeError(up_res["error"])
+        if not getattr(resp, "is_success", False):
+            print("[process] Storage upload error:", resp.status_code, resp.text)
+            raise RuntimeError(f"Storage upload failed: {resp.status_code} – {resp.text}")
 
         keypoints_url = supabase.storage.from_(BUCKET).get_public_url(kp_path)[
             "publicUrl"
