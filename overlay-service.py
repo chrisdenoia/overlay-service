@@ -87,9 +87,12 @@ def process():
             print("[process] Storage upload error:", resp.status_code, resp.text)
             raise RuntimeError(f"Storage upload failed: {resp.status_code} – {resp.text}")
 
-        keypoints_url = supabase.storage.from_(BUCKET).get_public_url(kp_path)[
-            "publicUrl"
-        ]
+       # Supabase-py v2 returns a string; v1 returned a dict
+       raw_url = supabase.storage.from_(BUCKET).get_public_url(kp_path)
+       if isinstance(raw_url, str):
+            keypoints_url = raw_url
+       else:
+    keypoints_url = raw_url.get("publicUrl") or raw_url.get("public_url")
         print("[process] keypoints_url:", keypoints_url)
 
         # ---- Encode overlay PNG to base64 ---------------------------
