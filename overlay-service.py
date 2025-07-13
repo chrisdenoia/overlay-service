@@ -133,18 +133,17 @@ def process():
         const_b64 = base64.b64encode(const_buf).decode("utf-8")
 
         # ---- upload silhouette PNG ----------------------------------------
-        # `silhouette_img` is already RGBA (R,G,B,A).  We can encode it
-        # straight to PNG – no colour-space conversion needed.
-        _ , sil_buf = cv2.imencode(".png", silhouette_img)   # keep alpha!
-
-        sil_path  = f"{user_id}/overlay_silhouette_{upload_id}.png"
-        sil_bytes = sil_buf.tobytes()
+        _, sil_buf = cv2.imencode(".png", silhouette_img)      # keep alpha
+        sil_path   = f"{user_id}/overlay_silhouette_{upload_id}.png"
 
         up2 = supabase.storage.from_(BUCKET).upload(
             sil_path,
-            sil_bytes,
-            file_options={"content-type": "image/png"},
-            upsert=True
+            sil_buf.tobytes(),
+            # put every option in this ONE dict – note the header name
+            file_options={
+                "content-type": "image/png",
+                "x-upsert":     "true"        # <-- header flag, **string**
+            }
         )
         if up2.get("error"):
             raise RuntimeError(f"Silhouette upload failed: {up2['error']}")
