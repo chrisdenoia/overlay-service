@@ -69,8 +69,11 @@ def generate_pose_overlay(image_bytes: bytes):
             skeleton, res.pose_landmarks, MP_POSE.POSE_CONNECTIONS
         )
 
-    # 2️⃣ Segmentation mask (Tasks Pose Landmarker) --------------------
-    mp_img   = mp_vision.Image(image_format=mp_vision.ImageFormat.SRGB, data=rgb)
+    # 2️⃣ Silhouette mask via Tasks PoseLandmarker
+    mp_img = mp.Image(
+        image_format=mp.ImageFormat.SRGB,
+        data=image_np,      
+    )
     det      = POSE_LMKR.detect(mp_img)
     seg_mask = det.segmentation_masks[0].numpy_view()      # float32 [0…1]
 
