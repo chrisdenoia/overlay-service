@@ -41,17 +41,17 @@ def _extract_url(resp):
 def generate_pose_overlay(image_bytes):
     image_np = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
 
-    # 1️⃣ pose landmarks & constellation (existing)
+    # 1️⃣ pose landmarks & constellation
     with mp_pose.Pose(static_image_mode=True) as pose:
         results = pose.process(image_np)
         if not results.pose_landmarks:
             raise ValueError("No pose landmarks detected.")
-        # landmarks list
+
         lm_list = [
             {"x": lm.x, "y": lm.y, "z": lm.z or 0}
             for lm in results.pose_landmarks.landmark
         ]
-        # draw skeleton
+
         annotated_image = image_np.copy()
         mp.solutions.drawing_utils.draw_landmarks(
             annotated_image,
@@ -59,30 +59,29 @@ def generate_pose_overlay(image_bytes):
             mp_pose.POSE_CONNECTIONS
         )
 
-# 2️⃣ silhouette mask via SelfieSegmentation
-with mp_seg.SelfieSegmentation(model_selection=1) as seg:
-    # ❶ run segmentation (float mask 0-1)
-    seg_res  = seg.process(cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR))
-    raw_mask = seg_res.segmentation_mask
+    # 2️⃣ silhouette mask via SelfieSegmentation
+    with mp_seg.SelfieSegmentation(model_selection=1) as seg:
+        # ❶ run segmentation (float mask 0-1)
+        seg_res  = seg.process(cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR))
+        raw_mask = seg_res.segmentation_mask
 
-    # ❷ low threshold → binary mask, close holes
-    mask_bin = (raw_mask > 0.10).astype(np.uint8)
-    k        = max(3, int(0.02 * image_np.shape[0]))          # 2 % of height
-    kernel   = np.ones((k, k), np.uint8)
-    mask_bin = cv2.morphologyEx(mask_bin, cv2.MORPH_CLOSE, kernel)
+        # ❷ low threshold → binary mask, close holes
+        mask_bin = (raw_mask > 0.10).astype(np.uint8)
+        k        = max(3, int(0.02 * image_np.shape[0]))          # 2 % of height
+        kernel   = np.ones((k, k), np.uint8)
+        mask_bin = cv2.morphologyEx(mask_bin, cv2.MORPH_CLOSE, kernel)
 
-    # ❸ keep only the largest blob (optional but guards against noise)
-    n_lbl, lbls, stats, _ = cv2.connectedComponentsWithStats(mask_bin)
-    if n_lbl > 1:
-        largest = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])   # skip background
-        mask_bin = (lbls == largest).astype(np.uint8)
+        # ❸ keep largest blob (guards against stray detections)
+        n_lbl, lbls, stats, _ = cv2.connectedComponentsWithStats(mask_bin)
+        if n_lbl > 1:
+            largest = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])   # skip background
+            mask_bin = (lbls == largest).astype(np.uint8)
 
-    # ❹ build RGBA silhouette: blue body, transparent bg
-    h, w, _ = image_np.shape
-    silhouette = np.zeros((h, w, 4), dtype=np.uint8)           # RGBA
-    silhouette[mask_bin.astype(bool)] = (66, 133, 244, 255)    # MediaPipe blue
+        # ❹ paint white silhouette on black
+        silhouette = np.zeros_like(image_np)                       # RGB
+        silhouette[mask_bin.astype(bool)] = (255, 255, 255)
 
-return annotated_image, lm_list, silhouette
+    return annotated_image, lm_list, silhouette
 
 # ---------------------------------------------------------------------
 
