@@ -73,11 +73,11 @@ def generate_pose_overlay(image_bytes: bytes):
         )
 
     # 2. Segmentation mask (MediaPipe Tasks)
-    mp_img = mp_vision.Image(
-        image_format=mp_vision.ImageFormat.SRGB,
-        data=rgb,
-    )
-    det = POSE_LANDMARKER.detect(mp_img)
+mp_img = mp.Image(                     # ← use mp.Image  ✅
+    image_format=mp.ImageFormat.SRGB,  # ← and mp.ImageFormat ✅
+    data=rgb,
+)
+det = POSE_LANDMARKER.detect(mp_img)
     seg_mask = det.segmentation_masks[0].numpy_view()  # float32 0-1
 
     # Binarise & clean
