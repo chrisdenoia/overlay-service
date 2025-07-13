@@ -68,6 +68,10 @@ def process():
         # ————————————————————————————————————————————————
 
         data = request.get_json()
+        app.logger.warning("DEBUG types – base64:%s  uid:%s  upload:%s",
+                   type(data.get("image_base64")).__name__,
+                   type(data.get("user_id")).__name__,
+                   type(data.get("upload_id")).__name__)
         image_base64 = data.get("image_base64")
         user_id      = data.get("user_id")  or "unknown-user"
         upload_id    = data.get("upload_id")
