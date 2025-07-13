@@ -124,7 +124,7 @@ def process():
         )
         if up.status_code >= 400:
             raise RuntimeError(f"Key-points upload failed: {up.text!s}")
-        kp_url = SUPABASE.storage.from_(BUCKET).get_public_url(kp_path)["publicUrl"]
+        kp_url  = SUPABASE.storage.from_(BUCKET).get_public_url(kp_path)
 
         # --- skeleton overlay PNG (base-64 for caller) ----------------------
         _, buf = cv2.imencode(".png", cv2.cvtColor(skeleton, cv2.COLOR_RGB2BGR))
@@ -142,7 +142,7 @@ def process():
         )
         if up2.status_code >= 400:
             raise RuntimeError(f"Silhouette upload failed: {up2.text!s}")
-        sil_url = SUPABASE.storage.from_(BUCKET).get_public_url(sil_path)["publicUrl"]
+        sil_url = SUPABASE.storage.from_(BUCKET).get_public_url(sil_path)
 
         return jsonify(
             success=True,
