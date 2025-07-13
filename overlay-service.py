@@ -1,4 +1,5 @@
-"""
+#
+# """
 overlay-service.py
 ──────────────────
 Given a base-64 image, this service returns three artefacts:
