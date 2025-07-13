@@ -96,8 +96,8 @@ def process():
                 "x-upsert":     "true"
             }
         )
-        if up.get("error"):
-            raise RuntimeError(f"Key-points upload failed: {up['error']}")
+        if up.status_code >= 400:
+            raise RuntimeError(f"Key-points upload failed: {up.text!s}")
 
         keypoints_url = supabase.storage.from_(BUCKET).get_public_url(kp_path)["publicUrl"]
         app.logger.info("Saved key-points → %s", keypoints_url)
@@ -121,8 +121,8 @@ def process():
                 "x-upsert":     "true"
             }
         )
-        if up2.get("error"):
-            raise RuntimeError(f"Silhouette upload failed: {up2['error']}")
+        if up2.status_code >= 400:
+            raise RuntimeError(f"Silhouette upload failed: {up2.text!s}")
 
         silhouette_url = supabase.storage.from_(BUCKET).get_public_url(sil_path)["publicUrl"]
         app.logger.info("Saved silhouette → %s", silhouette_url)
