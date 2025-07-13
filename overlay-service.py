@@ -80,53 +80,42 @@ def process():
         # generate constellation + landmarks + silhouette
         overlay_img, landmarks, silhouette_img = generate_pose_overlay(image_bytes)
 
-# ---- upload KEY-POINTS JSON -----------------------------------------
-kp_path   = f"{user_id}/keypoints_{upload_id}_{int(time.time()*1000)}.json"
-kp_bytes  = json.dumps(landmarks, separators=(",", ":")).encode()
+        # ---- upload KEY-POINTS JSON -----------------------------------------
+        kp_path  = f"{user_id}/keypoints_{upload_id}_{int(time.time()*1000)}.json"
+        kp_bytes = json.dumps(landmarks, separators=(",", ":")).encode()
 
-up = supabase.storage.from_(BUCKET).upload(
-    kp_path,
-    kp_bytes,
-    {                         # <--  ONE dict for options
-        "contentType": "application/json",
-        "upsert":      True
-    }
-)
+        up = supabase.storage.from_(BUCKET).upload(
+            kp_path,
+            kp_bytes,
+            {                         # ONE dict for all options ✅
+                "contentType": "application/json",
+                "upsert":      True
+            }
+        )
+        if up.get("error"):
+            raise RuntimeError(f"Key-points upload failed: {up['error']}")
 
-if up.get("error"):
-    raise RuntimeError(f"Key-points upload failed: {up['error']}")
+        keypoints_url = supabase.storage.from_(BUCKET).get_public_url(kp_path)["publicUrl"]
+        app.logger.info("Saved key-points → %s", keypoints_url)
 
-keypoints_url = (
-    supabase.storage.from_(BUCKET)
-    .get_public_url(kp_path)
-    ["publicUrl"]
-)
-app.logger.info("Saved key-points → %s", keypoints_url)
+        # ---- upload SILHOUETTE PNG ------------------------------------------
+        _, sil_buf = cv2.imencode(".png", cv2.cvtColor(silhouette_img, cv2.COLOR_RGB2BGR))
+        sil_path  = f"{user_id}/overlay_silhouette_{upload_id}.png"
+        sil_bytes = sil_buf.tobytes()
 
-# ---- upload silhouette PNG ----
-_, sil_buf = cv2.imencode(".png", cv2.cvtColor(silhouette_img,
-                                              cv2.COLOR_RGB2BGR))
-sil_path  = f"{user_id}/overlay_silhouette_{upload_id}.png"
-sil_bytes = sil_buf.tobytes()
+        up2 = supabase.storage.from_(BUCKET).upload(
+            sil_path,
+            sil_bytes,
+            {
+            "contentType": "image/png",   # or "image/svg+xml" if/when you switch
+            "upsert":      True
+            }
+        )
+        if up2.get("error"):
+            raise RuntimeError(f"Silhouette upload failed: {up2['error']}")
 
-up2 = supabase.storage.from_(BUCKET).upload(
-    sil_path,
-    sil_bytes,
-    {
-        "contentType": "image/png",   # or "image/svg+xml" if you change format
-        "upsert":      True
-    }
-)
-
-if up2.get("error"):
-    raise RuntimeError(f"Silhouette upload failed: {up2['error']}")
-
-silhouette_url = (
-    supabase.storage.from_(BUCKET)
-    .get_public_url(sil_path)
-    ["publicUrl"]
-)
-app.logger.info("Saved silhouette → %s", silhouette_url)
+        silhouette_url = supabase.storage.from_(BUCKET).get_public_url(sil_path)["publicUrl"]
+        app.logger.info("Saved silhouette → %s", silhouette_url)
 
         # ---- return everything to the edge-function caller ----
         return jsonify(
