@@ -59,37 +59,28 @@ def generate_pose_overlay(image_bytes):
             mp_pose.POSE_CONNECTIONS
         )
 
-    # 2️⃣ silhouette mask via SelfieSegmentation  ─────────────────────────
-    #
-    # Tuned parameters:
-    #   • gentler threshold (0 .15) – keeps more of the body
-    #   • CLOSE → OPEN to plug pin-holes & drop tiny specks
-    #   • kernel ≈ 3 % image-height – adapts to any resolution
-    #   • keep only the largest blob – eliminates stray bits
-    #
-    with mp_seg.SelfieSegmentation(model_selection=1) as seg:
-        # run segmentation → float32 mask ∈ [0, 1]
-        seg_res = seg.process(cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR))
-        raw_mask = seg_res.segmentation_mask
+# 2️⃣ silhouette mask via SelfieSegmentation
+with mp_seg.SelfieSegmentation(model_selection=1) as seg:
+    # ❶ run segmentation (float mask 0-1)
+    seg_res  = seg.process(cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR))
+    raw_mask = seg_res.segmentation_mask
 
-        # ❶ binarise
-        mask_bin = (raw_mask > 0.15).astype(np.uint8)
+    # ❷ low threshold → binary mask, close holes
+    mask_bin = (raw_mask > 0.10).astype(np.uint8)
+    k        = max(3, int(0.02 * image_np.shape[0]))          # 2 % of height
+    kernel   = np.ones((k, k), np.uint8)
+    mask_bin = cv2.morphologyEx(mask_bin, cv2.MORPH_CLOSE, kernel)
 
-        # ❷ morphology (fill gaps, drop noise)
-        k = max(3, int(0.03 * image_np.shape[0]))          # 3 % of height
-        kernel = np.ones((k, k), np.uint8)
-        mask_closed = cv2.morphologyEx(mask_bin, cv2.MORPH_CLOSE, kernel)
-        mask_clean  = cv2.morphologyEx(mask_closed, cv2.MORPH_OPEN,  kernel)
+    # ❸ keep only the largest blob (optional but guards against noise)
+    n_lbl, lbls, stats, _ = cv2.connectedComponentsWithStats(mask_bin)
+    if n_lbl > 1:
+        largest = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])   # skip background
+        mask_bin = (lbls == largest).astype(np.uint8)
 
-        # ❸ keep largest connected component
-        n_lbl, lbls, stats, _ = cv2.connectedComponentsWithStats(mask_clean)
-        if n_lbl > 1:
-            largest = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])  # skip bg
-            mask_clean = (lbls == largest).astype(np.uint8)
-
-        # ❹ paint final silhouette (white body on black bg)
-        silhouette = np.zeros_like(image_np)
-        silhouette[mask_clean.astype(bool)] = (255, 255, 255)
+    # ❹ build RGBA silhouette: blue body, transparent bg
+    h, w, _ = image_np.shape
+    silhouette = np.zeros((h, w, 4), dtype=np.uint8)           # RGBA
+    silhouette[mask_bin.astype(bool)] = (66, 133, 244, 255)    # MediaPipe blue
 
     return annotated_image, lm_list, silhouette
 
