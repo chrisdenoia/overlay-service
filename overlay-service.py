@@ -59,19 +59,37 @@ def generate_pose_overlay(image_bytes):
             mp_pose.POSE_CONNECTIONS
         )
 
-     # 2️⃣ silhouette mask via SelfieSegmentation (NEW)
+    # 2️⃣ silhouette mask via SelfieSegmentation  ─────────────────────────
+    #
+    # Tuned parameters:
+    #   • gentler threshold (0 .15) – keeps more of the body
+    #   • CLOSE → OPEN to plug pin-holes & drop tiny specks
+    #   • kernel ≈ 3 % image-height – adapts to any resolution
+    #   • keep only the largest blob – eliminates stray bits
+    #
     with mp_seg.SelfieSegmentation(model_selection=1) as seg:
+        # run segmentation → float32 mask ∈ [0, 1]
         seg_res = seg.process(cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR))
+        raw_mask = seg_res.segmentation_mask
 
-        # -- post-process the raw mask: close small gaps & fill holes ---------
-        mask_bin    = (seg_res.segmentation_mask > 0.5).astype(np.uint8)
-        kernel      = np.ones((15, 15), np.uint8)        # adjust size if needed
+        # ❶ binarise
+        mask_bin = (raw_mask > 0.15).astype(np.uint8)
+
+        # ❷ morphology (fill gaps, drop noise)
+        k = max(3, int(0.03 * image_np.shape[0]))          # 3 % of height
+        kernel = np.ones((k, k), np.uint8)
         mask_closed = cv2.morphologyEx(mask_bin, cv2.MORPH_CLOSE, kernel)
-        mask        = mask_closed.astype(bool)
-        # --------------------------------------------------------------------
+        mask_clean  = cv2.morphologyEx(mask_closed, cv2.MORPH_OPEN,  kernel)
 
+        # ❸ keep largest connected component
+        n_lbl, lbls, stats, _ = cv2.connectedComponentsWithStats(mask_clean)
+        if n_lbl > 1:
+            largest = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])  # skip bg
+            mask_clean = (lbls == largest).astype(np.uint8)
+
+        # ❹ paint final silhouette (white body on black bg)
         silhouette = np.zeros_like(image_np)
-        silhouette[mask] = (255, 255, 255)  # white body on black bg
+        silhouette[mask_clean.astype(bool)] = (255, 255, 255)
 
     return annotated_image, lm_list, silhouette
 
