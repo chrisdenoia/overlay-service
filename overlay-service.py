@@ -119,8 +119,8 @@ def process():
                 "x-upsert":     "true"
             }
         )
-        if up.status_code >= 400:
-            raise RuntimeError(f"Key-points upload failed: {up.text!s}")
+        if up.status_code >= 400:                       # ← no .get(), use HTTP status
+            raise RuntimeError(f"Upload failed – {up.status_code}: {up.text}")
 
         keypoints_url = _extract_url(
             supabase.storage.from_(BUCKET).get_public_url(kp_path)
@@ -145,8 +145,8 @@ def process():
                 "x-upsert":     "true"        # <-- header flag, **string**
             }
         )
-        if up2.get("error"):
-            raise RuntimeError(f"Silhouette upload failed: {up2['error']}")
+   if up2.status_code >= 400:             # <-- Response-object, not dict
+    raise RuntimeError(f"Silhouette upload failed: {up2.text}")
 
         silhouette_url = supabase.storage.from_(BUCKET)\
                                          .get_public_url(sil_path)["publicUrl"]
