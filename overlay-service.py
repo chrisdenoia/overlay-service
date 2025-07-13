@@ -91,9 +91,10 @@ def process():
         up = supabase.storage.from_(BUCKET).upload(
             kp_path,
             kp_bytes,
-            file_options={"content-type": "application/json"},
-            upsert="true"
-        )
+            file_options={                 # ✅ one dict of headers
+                "content-type": "application/json",
+                "x-upsert":     "true"
+            }
         if up.get("error"):
             raise RuntimeError(f"Key-points upload failed: {up['error']}")
 
@@ -108,9 +109,10 @@ def process():
         up2 = supabase.storage.from_(BUCKET).upload(
             sil_path,
             sil_bytes,
-            file_options={"content-type": "image/png"},
-            upsert="true"
-        )
+            file_options={
+               "content-type": "image/png",
+               "x-upsert":     "true"
+            }
         if up2.get("error"):
             raise RuntimeError(f"Silhouette upload failed: {up2['error']}")
 
