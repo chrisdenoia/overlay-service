@@ -84,8 +84,10 @@ def process():
         kp_path = f"{user_id}/keypoints_{upload_id}_{int(time.time()*1000)}.json"
         kp_bytes = json.dumps(landmarks, separators=(",", ":")).encode()
         up = supabase.storage.from_(BUCKET).upload(
-            kp_path, kp_bytes,
-            {"upsert": True, "content-type": "application/json"}
+            kp_path,
+            kp_bytes,
+            file_options={"content-type": "application/json"}
+            upsert=True
         )
         if up.get("error"):
             raise RuntimeError(f"Keypoints upload failed: {up['error']}")
@@ -101,8 +103,10 @@ def process():
         sil_path = f"{user_id}/overlay_silhouette_{upload_id}.png"
         sil_bytes = sil_buf.tobytes()
         up2 = supabase.storage.from_(BUCKET).upload(
-            sil_path, sil_bytes,
-            {"upsert": True, "content-type": "image/png"}
+            sil_path,
+            sil_bytes,
+            file_option={"content-type": "image/png"}
+            upster=True
         )
         if up2.get("error"):
             raise RuntimeError(f"Silhouette upload failed: {up2['error']}")
