@@ -4,6 +4,7 @@ pillow==11.3.0
 requests==2.31.0
 mediapipe==0.10.21
 supabase==1.1.1
+storage3>=0.5.0
 
 # Optional but already included
 absl-py==2.3.0
