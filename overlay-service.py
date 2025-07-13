@@ -59,27 +59,21 @@ def generate_pose_overlay(image_bytes):
             mp_pose.POSE_CONNECTIONS
         )
 
-    # 2️⃣ silhouette mask via SelfieSegmentation
+    # 2️⃣ silhouette mask via SelfieSegmentation  ──────────────────────────
     with mp_seg.SelfieSegmentation(model_selection=1) as seg:
-        # ❶ run segmentation (float mask 0-1)
         seg_res  = seg.process(cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR))
-        raw_mask = seg_res.segmentation_mask
+        raw_mask = seg_res.segmentation_mask                     # float 0-1
 
-        # ❷ low threshold → binary mask, close holes
+        # ▸ threshold + hole fill
         mask_bin = (raw_mask > 0.10).astype(np.uint8)
-        k        = max(3, int(0.02 * image_np.shape[0]))          # 2 % of height
+        k        = max(3, int(0.01 * image_np.shape[0]))         # 1 % of height
         kernel   = np.ones((k, k), np.uint8)
         mask_bin = cv2.morphologyEx(mask_bin, cv2.MORPH_CLOSE, kernel)
 
-        # ❸ keep largest blob (guards against stray detections)
-        n_lbl, lbls, stats, _ = cv2.connectedComponentsWithStats(mask_bin)
-        if n_lbl > 1:
-            largest = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])   # skip background
-            mask_bin = (lbls == largest).astype(np.uint8)
-
-        # ❹ paint white silhouette on black
-        silhouette = np.zeros_like(image_np)                       # RGB
-        silhouette[mask_bin.astype(bool)] = (255, 255, 255)
+        # ▸ build **RGBA** overlay – MediaPipe blue on transparent bg
+        h, w, _  = image_np.shape
+        silhouette = np.zeros((h, w, 4), dtype=np.uint8)         # RGBA
+        silhouette[mask_bin.astype(bool)] = (66, 133, 244, 255)  # (#4285F4, α=255)
 
     return annotated_image, lm_list, silhouette
 
@@ -138,26 +132,25 @@ def process():
                                     cv2.cvtColor(overlay_img, cv2.COLOR_RGB2BGR))
         const_b64 = base64.b64encode(const_buf).decode("utf-8")
 
-        # ---- upload SILHOUETTE PNG ----------------------------------------
-        _, sil_buf = cv2.imencode(".png",
-                                  cv2.cvtColor(silhouette_img, cv2.COLOR_RGB2BGR))
-        sil_path = f"{upload_id}/overlay_silhouette.png"
+        # ---- upload silhouette PNG ----------------------------------------
+        # `silhouette_img` is already RGBA (R,G,B,A).  We can encode it
+        # straight to PNG – no colour-space conversion needed.
+        _ , sil_buf = cv2.imencode(".png", silhouette_img)   # keep alpha!
+
+        sil_path  = f"{user_id}/overlay_silhouette_{upload_id}.png"
         sil_bytes = sil_buf.tobytes()
 
         up2 = supabase.storage.from_(BUCKET).upload(
             sil_path,
             sil_bytes,
-            file_options={
-                "content-type": "image/png",
-                "x-upsert":     "true"
-            }
+            file_options={"content-type": "image/png"},
+            upsert=True
         )
-        if up2.status_code >= 400:
-            raise RuntimeError(f"Silhouette upload failed: {up2.text!s}")
+        if up2.get("error"):
+            raise RuntimeError(f"Silhouette upload failed: {up2['error']}")
 
-        silhouette_url = _extract_url(
-    supabase.storage.from_(BUCKET).get_public_url(sil_path)
-)
+        silhouette_url = supabase.storage.from_(BUCKET)\
+                                         .get_public_url(sil_path)["publicUrl"]
         app.logger.info("Saved silhouette → %s", silhouette_url)
 
         # ---- return everything to the edge-function caller ----
