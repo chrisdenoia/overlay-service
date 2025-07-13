@@ -23,6 +23,20 @@ supabase = create_client(
 BUCKET = "processed-data"
 
 # ---------------------------------------------------------------------
+def _extract_url(resp):
+    """
+    get_public_url() may return either a dict or a plain string.
+    Always return the URL string.
+    """
+    if isinstance(resp, str):
+        return resp
+    return (
+        resp.get("publicUrl")
+        or resp.get("data", {}).get("publicUrl")
+        or "UNKNOWN_URL"
+    )
+
+# ---------------------------------------------------------------------
 
 def generate_pose_overlay(image_bytes):
     image_np = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
@@ -99,7 +113,9 @@ def process():
         if up.status_code >= 400:
             raise RuntimeError(f"Key-points upload failed: {up.text!s}")
 
-        keypoints_url = supabase.storage.from_(BUCKET).get_public_url(kp_path)["publicUrl"]
+        keypoints_url = _extract_url(
+            supabase.storage.from_(BUCKET).get_public_url(kp_path)
+        )
         app.logger.info("Saved key-points → %s", keypoints_url)
 
         # ---- encode CONSTELLATION overlay (base64 for the caller) ----------
@@ -124,7 +140,9 @@ def process():
         if up2.status_code >= 400:
             raise RuntimeError(f"Silhouette upload failed: {up2.text!s}")
 
-        silhouette_url = supabase.storage.from_(BUCKET).get_public_url(sil_path)["publicUrl"]
+        silhouette_url = _extract_url(
+    supabase.storage.from_(BUCKET).get_public_url(sil_path)
+)
         app.logger.info("Saved silhouette → %s", silhouette_url)
 
         # ---- return everything to the edge-function caller ----
