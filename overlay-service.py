@@ -82,7 +82,7 @@ with mp_seg.SelfieSegmentation(model_selection=1) as seg:
     silhouette = np.zeros((h, w, 4), dtype=np.uint8)           # RGBA
     silhouette[mask_bin.astype(bool)] = (66, 133, 244, 255)    # MediaPipe blue
 
-    return annotated_image, lm_list, silhouette
+return annotated_image, lm_list, silhouette
 
 # ---------------------------------------------------------------------
 
