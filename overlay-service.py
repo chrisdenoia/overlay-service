@@ -59,10 +59,17 @@ def generate_pose_overlay(image_bytes):
             mp_pose.POSE_CONNECTIONS
         )
 
-    # 2️⃣ silhouette mask via SelfieSegmentation (NEW)
+     # 2️⃣ silhouette mask via SelfieSegmentation (NEW)
     with mp_seg.SelfieSegmentation(model_selection=1) as seg:
         seg_res = seg.process(cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR))
-        mask = seg_res.segmentation_mask > 0.5
+
+        # -- post-process the raw mask: close small gaps & fill holes ---------
+        mask_bin    = (seg_res.segmentation_mask > 0.5).astype(np.uint8)
+        kernel      = np.ones((15, 15), np.uint8)        # adjust size if needed
+        mask_closed = cv2.morphologyEx(mask_bin, cv2.MORPH_CLOSE, kernel)
+        mask        = mask_closed.astype(bool)
+        # --------------------------------------------------------------------
+
         silhouette = np.zeros_like(image_np)
         silhouette[mask] = (255, 255, 255)  # white body on black bg
 
