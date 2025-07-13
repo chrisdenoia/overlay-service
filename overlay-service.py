@@ -93,8 +93,8 @@ def process():
             kp_bytes,
             {                         # ONE dict for all options ✅
                 "contentType": "application/json",
-                "upsert":      True
             }
+            upsert="true"
         )
         if up.get("error"):
             raise RuntimeError(f"Key-points upload failed: {up['error']}")
@@ -111,9 +111,9 @@ def process():
             sil_path,
             sil_bytes,
             {
-            "contentType": "image/png",   # or "image/svg+xml" if/when you switch
-            "upsert":      True
+                "contentType": "image/png",   # or "image/svg+xml" if/when you switch   
             }
+            upsert="true"
         )
         if up2.get("error"):
             raise RuntimeError(f"Silhouette upload failed: {up2['error']}")
