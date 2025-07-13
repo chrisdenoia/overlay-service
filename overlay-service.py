@@ -91,9 +91,7 @@ def process():
         up = supabase.storage.from_(BUCKET).upload(
             kp_path,
             kp_bytes,
-            {                         # ONE dict for all options ✅
-                "contentType": "application/json",
-            }
+            file_options={"content-type": "application/json"},
             upsert="true"
         )
         if up.get("error"):
@@ -110,9 +108,7 @@ def process():
         up2 = supabase.storage.from_(BUCKET).upload(
             sil_path,
             sil_bytes,
-            {
-                "contentType": "image/png",   # or "image/svg+xml" if/when you switch   
-            }
+            file_options={"content-type": "image/png"},
             upsert="true"
         )
         if up2.get("error"):
