@@ -55,7 +55,7 @@ def generate_pose_overlay(image_bytes: bytes):
     # decode → RGB ndarray
     rgb = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
 
-    # 1️⃣ Landmarks & constellation (classic solution) -----------------
+    # 1️⃣ Landmarks + constellation (classic solution)
     with MP_POSE.Pose(static_image_mode=True) as pose:
         res = pose.process(rgb)
         if not res.pose_landmarks:
@@ -70,16 +70,16 @@ def generate_pose_overlay(image_bytes: bytes):
         )
 
     # 2️⃣ Silhouette mask via Tasks PoseLandmarker
-    mp_img = mp.Image(
+    mp_img = mp.Image(                     # ← use mp.Image (in top-level API)
         image_format=mp.ImageFormat.SRGB,
-        data=image_np,      
+        data=rgb,                          # ← the decoded frame
     )
     det      = POSE_LMKR.detect(mp_img)
-    seg_mask = det.segmentation_masks[0].numpy_view()      # float32 [0…1]
+    seg_mask = det.segmentation_masks[0].numpy_view()  # float32 0-1
 
     # Binarise & clean
-    mask = (seg_mask > 0.05).astype(np.uint8)              # low threshold
-    k    = max(3, int(0.02 * rgb.shape[0]))                # 2 % of height
+    mask = (seg_mask > 0.05).astype(np.uint8)
+    k    = max(3, int(0.02 * rgb.shape[0]))            # 2 % of height
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((k, k), np.uint8))
 
     # keep largest blob
@@ -91,7 +91,7 @@ def generate_pose_overlay(image_bytes: bytes):
     # paint RGBA silhouette – MediaPipe blue
     h, w, _  = rgb.shape
     sil_rgba = np.zeros((h, w, 4), np.uint8)
-    sil_rgba[mask.astype(bool)] = (66, 133, 244, 255)      # #4285F4
+    sil_rgba[mask.astype(bool)] = (66, 133, 244, 255)  # #4285F4
 
     return skeleton, lm_list, sil_rgba
 
