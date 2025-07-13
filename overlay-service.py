@@ -126,7 +126,7 @@ def process():
         # ---- upload SILHOUETTE PNG ----------------------------------------
         _, sil_buf = cv2.imencode(".png",
                                   cv2.cvtColor(silhouette_img, cv2.COLOR_RGB2BGR))
-        sil_path  = f"{user_id}/overlay_silhouette_{upload_id}.png"
+        sil_path = f"{upload_id}/overlay_silhouette.png"
         sil_bytes = sil_buf.tobytes()
 
         up2 = supabase.storage.from_(BUCKET).upload(
