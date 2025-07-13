@@ -84,25 +84,32 @@ def process():
         # generate constellation + landmarks + silhouette
         overlay_img, landmarks, silhouette_img = generate_pose_overlay(image_bytes)
 
-        # ---- upload KEY-POINTS JSON -----------------------------------------
+        # ---- upload KEY-POINTS JSON ----------------------------------------
         kp_path  = f"{user_id}/keypoints_{upload_id}_{int(time.time()*1000)}.json"
         kp_bytes = json.dumps(landmarks, separators=(",", ":")).encode()
 
         up = supabase.storage.from_(BUCKET).upload(
             kp_path,
             kp_bytes,
-            file_options={                 # ✅ one dict of headers
+            file_options={                 # one dict of headers ✅
                 "content-type": "application/json",
                 "x-upsert":     "true"
             }
+        )
         if up.get("error"):
             raise RuntimeError(f"Key-points upload failed: {up['error']}")
 
         keypoints_url = supabase.storage.from_(BUCKET).get_public_url(kp_path)["publicUrl"]
         app.logger.info("Saved key-points → %s", keypoints_url)
 
-        # ---- upload SILHOUETTE PNG ------------------------------------------
-        _, sil_buf = cv2.imencode(".png", cv2.cvtColor(silhouette_img, cv2.COLOR_RGB2BGR))
+        # ---- encode CONSTELLATION overlay (base64 for the caller) ----------
+        _, const_buf = cv2.imencode(".png",
+                                    cv2.cvtColor(overlay_img, cv2.COLOR_RGB2BGR))
+        const_b64 = base64.b64encode(const_buf).decode("utf-8")
+
+        # ---- upload SILHOUETTE PNG ----------------------------------------
+        _, sil_buf = cv2.imencode(".png",
+                                  cv2.cvtColor(silhouette_img, cv2.COLOR_RGB2BGR))
         sil_path  = f"{user_id}/overlay_silhouette_{upload_id}.png"
         sil_bytes = sil_buf.tobytes()
 
@@ -110,9 +117,10 @@ def process():
             sil_path,
             sil_bytes,
             file_options={
-               "content-type": "image/png",
-               "x-upsert":     "true"
+                "content-type": "image/png",
+                "x-upsert":     "true"
             }
+        )
         if up2.get("error"):
             raise RuntimeError(f"Silhouette upload failed: {up2['error']}")
 
