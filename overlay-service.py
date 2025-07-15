@@ -98,7 +98,7 @@ def generate_pose_overlay(image_bytes: bytes):
     h, w = mask.shape
     sil_rgba = np.zeros((h, w, 4), dtype=np.uint8)
     sil_rgba[..., :3] = (66, 133, 244)            # Set RGB to blue
-    sil_rgba[..., 3] = mask.astype(np.uint8) * 255  # Alpha channel
+    sil_rgba[..., 3] = mask.astype(np.uint8) * 128  # semi-transparent blue
 
     # Composite silhouette over original image
     background = Image.fromarray(rgb).convert("RGBA")
