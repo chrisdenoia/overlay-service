@@ -97,10 +97,11 @@ def generate_pose_overlay(image_bytes: bytes):
     # Paint RGBA silhouette with transparent background
     h, w = mask.shape
     sil_rgba = np.zeros((h, w, 4), dtype=np.uint8)
-    sil_rgba[..., :3] = (66, 133, 244)  # RGB color
-    sil_rgba[..., 3] = mask * 255       # Alpha from mask
+    sil_rgba[..., :3] = (66, 133, 244)            # Set RGB to blue
+    sil_rgba[..., 3] = mask.astype(np.uint8) * 255  # Alpha: 255 for mask, 0 for background
 
     return skeleton, lm_list, sil_rgba
+
 
 # -------------------------------------------------------------------------
 @app.route("/generate-pose-overlay", methods=["POST"])
