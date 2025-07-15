@@ -1,14 +1,14 @@
+# -*- coding: utf-8 -*-
 """
 overlay-service.py
 
-Takes a base64-encoded image and returns three artifacts:
-• overlay_base64         – PNG of the pose skeleton
-• keypoints_url          – JSON with 33 landmarks
-• overlay_silhouette_url – PNG RGBA silhouette (blue body / transparent background)
+Takes a base-64 image -> returns three artefacts:
+- overlay_base64         - PNG of the pose skeleton
+- keypoints_url          - JSON with 33 landmarks
+- overlay_silhouette_url - PNG RGBA silhouette (blue body / transparent bg)
 
-All artifacts are saved in Supabase storage bucket `processed-data`
+All artefacts are saved in Supabase bucket 'processed-data'
 inside a folder named after the upload_id.
-"""
 """
 
 import base64
