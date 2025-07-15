@@ -94,14 +94,13 @@ def generate_pose_overlay(image_bytes: bytes):
         largest = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
         mask = (lbls == largest).astype(np.uint8)
 
-    # Paint RGBA silhouette (MediaPipe blue on transparent bg)
-    sil_rgba = np.zeros((h, w, 4), np.uint8)
-    sil_rgba[..., 3] = 0  # Fully transparent
-    sil_rgba[mask.astype(bool)] = (66, 133, 244, 255)  # #4285F4 blue + opaque
+    # Paint RGBA silhouette with transparent background
+    h, w = mask.shape
+    sil_rgba = np.zeros((h, w, 4), dtype=np.uint8)
+    sil_rgba[..., :3] = (66, 133, 244)  # RGB color
+    sil_rgba[..., 3] = mask * 255       # Alpha from mask
 
-    # Save
-    _, sil_buf = cv2.imencode(".png", sil_rgba)
-
+    return skeleton, lm_list, sil_rgba
 
 # -------------------------------------------------------------------------
 @app.route("/generate-pose-overlay", methods=["POST"])
