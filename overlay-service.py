@@ -1,4 +1,5 @@
-"""
+#
+# """
 overlay-service.py
 
 Takes a base-64 image ⇢ returns three artefacts:
@@ -80,8 +81,9 @@ def generate_pose_overlay(image_bytes: bytes):
     det = POSE_LANDMARKER.detect(mp_img)
     seg_mask = det.segmentation_masks[0].numpy_view()  # float32 0-1
 
-    # Binarise & clean
-    mask = (seg_mask > 0.1).astype(np.uint8)  # tighter cutoff to reduce noise
+    # Binarise & clean with blur
+    blurred = cv2.GaussianBlur(seg_mask, (5, 5), 0)
+    mask = (blurred > 0.1).astype(np.uint8)
     k = max(3, int(0.02 * rgb.shape[0]))               # 2 % of height
     kernel = np.ones((k, k), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
