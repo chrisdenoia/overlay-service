@@ -50,7 +50,7 @@ BUCKET = "processed-data"
 
 # ---------- Flask app -----------------------------------------------------
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 * 1024  # 4 MB JSON bodies
+app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
 
 
 # -------------------------------------------------------------------------
@@ -113,13 +113,16 @@ def generate_pose_overlay(image_bytes: bytes):
 def process():
     try:
         payload = request.get_json(force=True)
-        img_b64 = payload.get("image_base64")
-        upload_id = payload.get("upload_id")
-        if not img_b64 or not upload_id:
-            return jsonify(success=False, error="Missing image or upload_id"), 400
+    except Exception as e:
+        print(f"Error reading JSON: {str(e)}")
+        return jsonify({"error": "Invalid or too large payload"}), 400
+    img_b64 = payload.get("image_base64")
+    upload_id = payload.get("upload_id")
+    if not img_b64 or not upload_id:
+        return jsonify(success=False, error="Missing image or upload_id"), 400
 
+    try:
         img_bytes = base64.b64decode(img_b64)
-
         skeleton, landmarks, silhouette = generate_pose_overlay(img_bytes)
 
         # --- key-points JSON ------------------------------------------------
