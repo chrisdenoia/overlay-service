@@ -3,7 +3,7 @@
 overlay-service.py
 
 Takes a base-64 image -> returns three artefacts:
-- overlay_base64         - PNG of the pose skeleton
+- overlay_base64         - PNG of the pose constellation
 - keypoints_url          - JSON with 33 landmarks
 - overlay_silhouette_url - PNG RGBA silhouette (blue body / transparent bg)
 
@@ -23,7 +23,7 @@ from PIL import Image
 from flask import Flask, jsonify, request
 import mediapipe as mp
 
-# ---------- MediaPipe classic (skeleton) ---------------------------------
+# ---------- MediaPipe classic (constellation) ---------------------------------
 MP_POSE = mp.solutions.pose
 
 # ---------- MediaPipe Tasks (segmentation mask) --------------------------
@@ -55,11 +55,11 @@ app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
 
 # -------------------------------------------------------------------------
 def generate_pose_overlay(image_bytes: bytes):
-    """Return (skeleton_rgb, landmark_list, silhouette_rgba)."""
+    """Return (constellation_rgb, landmark_list, silhouette_rgba)."""
     # Decode → RGB ndarray
     rgb = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
 
-    # 1. Landmarks & skeleton (classic solution)
+    # 1. Landmarks & constellation (classic solution)
     with MP_POSE.Pose(static_image_mode=True) as pose:
         res = pose.process(rgb)
         if not res.pose_landmarks:
@@ -68,9 +68,9 @@ def generate_pose_overlay(image_bytes: bytes):
             {"x": lm.x, "y": lm.y, "z": lm.z or 0.0}
             for lm in res.pose_landmarks.landmark
         ]
-        skeleton = rgb.copy()
+        constellation = rgb.copy()
         mp.solutions.drawing_utils.draw_landmarks(
-            skeleton, res.pose_landmarks, MP_POSE.POSE_CONNECTIONS
+            constellation, res.pose_landmarks, MP_POSE.POSE_CONNECTIONS
         )
 
     # 2. Segmentation mask (MediaPipe Tasks)
@@ -105,7 +105,7 @@ def generate_pose_overlay(image_bytes: bytes):
     overlay = Image.fromarray(sil_rgba, mode="RGBA")
     sil_rgba_composited = Image.alpha_composite(background, overlay)
 
-    return skeleton, lm_list, np.array(sil_rgba_composited)
+    return constellation, lm_list, np.array(sil_rgba_composited)
 
 
 # -------------------------------------------------------------------------
@@ -122,9 +122,13 @@ def process():
         return jsonify(success=False, error="Missing image or upload_id"), 400
 
     try:
-        img_bytes = base64.b64decode(img_b64)
-        skeleton, landmarks, silhouette = generate_pose_overlay(img_bytes)
+    img_bytes = base64.b64decode(img_b64, validate=True)
+        except Exception as decode_err:
+    print(f"Base64 decode error: {decode_err}")
+        return jsonify(success=False, error="Invalid base64 image encoding"), 400
 
+    try:
+        constellation, landmarks, silhouette = generate_pose_overlay(img_bytes)
         # --- key-points JSON ------------------------------------------------
         kp_path = f"{upload_id}/keypoints_{int(time.time()*1000)}.json"
         kp_bytes = json.dumps(landmarks, separators=(",", ":")).encode()
@@ -137,8 +141,8 @@ def process():
             raise RuntimeError(f"Key-points upload failed: {up.text!s}")
         kp_url  = SUPABASE.storage.from_(BUCKET).get_public_url(kp_path)
 
-        # --- skeleton overlay PNG (base-64 for caller) ----------------------
-        _, buf = cv2.imencode(".png", cv2.cvtColor(skeleton, cv2.COLOR_RGB2BGR))
+        # --- constellation overlay PNG (base-64 for caller) ----------------------
+        _, buf = cv2.imencode(".png", cv2.cvtColor(constellation, cv2.COLOR_RGB2BGR))
         const_b64 = base64.b64encode(buf).decode()
 
         # --- silhouette PNG (RGBA→BGRA) ------------------------------------
