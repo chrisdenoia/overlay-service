@@ -122,9 +122,9 @@ def process():
         return jsonify(success=False, error="Missing image or upload_id"), 400
 
     try:
-    img_bytes = base64.b64decode(img_b64, validate=True)
-        except Exception as decode_err:
-    print(f"Base64 decode error: {decode_err}")
+        img_bytes = base64.b64decode(img_b64, validate=True)
+    except Exception as decode_err:
+        print(f"Base64 decode error: {decode_err}")
         return jsonify(success=False, error="Invalid base64 image encoding"), 400
 
     try:
