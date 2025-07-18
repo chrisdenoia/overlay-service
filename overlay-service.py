@@ -299,19 +299,58 @@ def generate_pose_overlay_from_keypoints(image_bytes: bytes, keypoints: list):
     """Generate overlay using existing keypoints (no re-detection)."""
     # Decode → RGB ndarray
     rgb = np.array(Image.open(io.BytesIO(image_bytes)).convert("RGB"))
+    height, width = rgb.shape[:2]
 
-    # 1. Draw constellation using existing keypoints
+    # 1. Draw constellation using existing keypoints manually with OpenCV
     constellation = rgb.copy()
-    mock_landmarks = create_pose_landmarks_from_keypoints(keypoints)
     
-    # Draw the pose constellation
-    mp.solutions.drawing_utils.draw_landmarks(
-        constellation, 
-        mock_landmarks, 
-        MP_POSE.POSE_CONNECTIONS,
-        mp.solutions.drawing_utils.DrawingSpec(color=(0, 255, 0), thickness=2, circle_radius=3),
-        mp.solutions.drawing_utils.DrawingSpec(color=(255, 0, 0), thickness=2)
-    )
+    # Convert to BGR for OpenCV drawing
+    constellation_bgr = cv2.cvtColor(constellation, cv2.COLOR_RGB2BGR)
+    
+    # Define pose connections (MediaPipe pose connections)
+    POSE_CONNECTIONS = [
+        # Face
+        (0, 1), (1, 2), (2, 3), (3, 7), (0, 4), (4, 5), (5, 6), (6, 8),
+        # Torso  
+        (9, 10), (11, 12), (11, 13), (13, 15), (15, 17), (15, 19), (15, 21),
+        (12, 14), (14, 16), (16, 18), (16, 20), (16, 22), (11, 23), (12, 24),
+        (23, 24), (23, 25), (25, 27), (27, 29), (29, 31), (27, 31),
+        (24, 26), (26, 28), (28, 30), (30, 32), (28, 32)
+    ]
+    
+    # Draw connections
+    for connection in POSE_CONNECTIONS:
+        start_idx, end_idx = connection
+        if (start_idx < len(keypoints) and end_idx < len(keypoints) and
+            keypoints[start_idx]['visibility'] > 0.5 and 
+            keypoints[end_idx]['visibility'] > 0.5):
+            
+            start_point = (
+                int(keypoints[start_idx]['x'] * width),
+                int(keypoints[start_idx]['y'] * height)
+            )
+            end_point = (
+                int(keypoints[end_idx]['x'] * width),
+                int(keypoints[end_idx]['y'] * height)
+            )
+            
+            # Draw line in green
+            cv2.line(constellation_bgr, start_point, end_point, (0, 255, 0), 2)
+    
+    # Draw landmarks as circles
+    for i, kp in enumerate(keypoints):
+        if kp['visibility'] > 0.5:
+            point = (
+                int(kp['x'] * width),
+                int(kp['y'] * height)
+            )
+            # Draw circle in red
+            cv2.circle(constellation_bgr, point, 4, (0, 0, 255), -1)
+    
+    # Convert back to RGB
+    constellation = cv2.cvtColor(constellation_bgr, cv2.COLOR_BGR2RGB)
+    
+    print("✅ Pose overlay (constellation) generated successfully")
 
     # 2. Generate segmentation mask for silhouette (if available)
     silhouette_rgba = None
@@ -349,8 +388,10 @@ def generate_pose_overlay_from_keypoints(image_bytes: bytes, keypoints: list):
                 background = Image.fromarray(rgb).convert("RGBA")
                 overlay = Image.fromarray(sil_rgba, mode="RGBA")
                 silhouette_rgba = np.array(Image.alpha_composite(background, overlay))
+                
+                print("✅ Silhouette overlay generated successfully")
         except Exception as e:
-            print(f"Silhouette generation failed: {e}")
+            print(f"⚠️ Silhouette generation failed: {e}")
 
     return constellation, silhouette_rgba
 
