@@ -402,6 +402,10 @@ def process_pose_media():
     media_b64 = payload.get("media_base64")
     file_path = payload.get("file_path", "unknown")
     
+    # NEW: Check if overlays should be generated
+    include_overlays = payload.get("include_overlays", False)
+    generate_all = payload.get("generate_all", False)
+    
     if not upload_id or not media_type or not media_b64:
         return jsonify(success=False, error="Missing required fields: upload_id, media_type, or media_base64"), 400
     
@@ -412,6 +416,7 @@ def process_pose_media():
         media_data = base64.b64decode(media_b64, validate=True)
         
         print(f"Processing {media_type} for upload {upload_id}, size: {len(media_data)} bytes, file: {file_path}")
+        print(f"Include overlays: {include_overlays}, Generate all: {generate_all}")
         
         # Process based on media type
         if media_type == 'video':
@@ -444,7 +449,7 @@ def process_pose_media():
         
         processing_time = time.time() - start_time
         
-        # Prepare response
+        # Prepare basic response
         response_data = {
             "success": True,
             "keypoints": result_data['keypoints'],
@@ -457,10 +462,45 @@ def process_pose_media():
             "processing_time_seconds": processing_time
         }
         
+        # NEW: Generate overlays if requested
+        if include_overlays or generate_all:
+            print("🎨 Generating overlay images...")
+            
+            try:
+                # Convert frame to bytes for overlay generation
+                _, frame_buffer = cv2.imencode('.png', result_data['frame'])
+                frame_bytes = frame_buffer.tobytes()
+                
+                # Generate overlays using existing keypoints
+                constellation, silhouette = generate_pose_overlay_from_keypoints(
+                    frame_bytes, 
+                    result_data['keypoints']
+                )
+                
+                # Convert constellation (pose overlay) to base64
+                if constellation is not None:
+                    _, overlay_buffer = cv2.imencode('.png', cv2.cvtColor(constellation, cv2.COLOR_RGB2BGR))
+                    overlay_real_base64 = base64.b64encode(overlay_buffer).decode('utf-8')
+                    response_data['overlay_real_base64'] = overlay_real_base64
+                    print("✅ Pose overlay generated successfully")
+                
+                # Convert silhouette to base64
+                if silhouette is not None:
+                    _, silhouette_buffer = cv2.imencode('.png', cv2.cvtColor(silhouette, cv2.COLOR_RGBA2BGRA))
+                    overlay_silhouette_base64 = base64.b64encode(silhouette_buffer).decode('utf-8')
+                    response_data['overlay_silhouette_base64'] = overlay_silhouette_base64
+                    print("✅ Silhouette overlay generated successfully")
+                
+            except Exception as overlay_error:
+                print(f"⚠️ Overlay generation failed: {str(overlay_error)}")
+                # Don't fail the whole request if overlays fail
+                response_data['overlay_generation_error'] = str(overlay_error)
+        
         print(f"Successfully processed {media_type}: {len(result_data['keypoints'])} keypoints, "
               f"confidence: {result_data['confidence']:.3f}, "
               f"stability: {result_data['stability']:.3f}, "
-              f"time: {processing_time:.2f}s")
+              f"time: {processing_time:.2f}s, "
+              f"overlays: {include_overlays or generate_all}")
         
         return jsonify(response_data), 200
         
