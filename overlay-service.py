@@ -421,7 +421,17 @@ def process_pose_media():
             try:
                 # Find peak pose frame in video
                 result_data = find_peak_pose_frame(temp_video_path)
-                processing_method = "single_image_analysis"
+                processing_method = "video_peak_detection"
+                
+            finally:
+                # Clean up temp file
+                if os.path.exists(temp_video_path):
+                    os.remove(temp_video_path)
+        
+        elif media_type == 'image':
+            # Process single image
+            result_data = process_single_image(media_data)
+            processing_method = "single_image_analysis"
         
         else:
             return jsonify(success=False, error=f"Unsupported media type: {media_type}"), 400
@@ -642,14 +652,4 @@ if __name__ == "__main__":
     print(f"Supabase Connection: ✅")
     print("🎯 Ready for intelligent video and image processing!")
     
-    app.run(host="0.0.0.0", port=3000, debug=True)d = "video_peak_detection"
-                
-            finally:
-                # Clean up temp file
-                if os.path.exists(temp_video_path):
-                    os.remove(temp_video_path)
-        
-        elif media_type == 'image':
-            # Process single image
-            result_data = process_single_image(media_data)
-            processing_metho
+    app.run(host="0.0.0.0", port=3000, debug=True)
