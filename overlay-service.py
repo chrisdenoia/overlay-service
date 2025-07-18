@@ -70,7 +70,8 @@ def calculate_pose_stability(keypoints_sequence, window_size=30):
     
     for joint_idx in critical_joints:
         joint_positions = []
-        for frame_keypoints in keypoints_sequence[-window_size:]:
+        sequence_list = list(keypoints_sequence)
+        for frame_keypoints in sequence_list[-window_size:]:
             if joint_idx < len(frame_keypoints) and frame_keypoints[joint_idx]['visibility'] > 0.5:
                 joint_positions.append([
                     frame_keypoints[joint_idx]['x'], 
@@ -99,8 +100,9 @@ def calculate_movement_velocity(keypoints_sequence):
     if len(keypoints_sequence) < 2:
         return float('inf')
     
-    prev_frame = keypoints_sequence[-2]
-    curr_frame = keypoints_sequence[-1]
+    sequence_list = list(keypoints_sequence)
+    prev_frame = sequence_list[-2]
+    curr_frame = sequence_list[-1]
     
     total_movement = 0.0
     valid_joints = 0
